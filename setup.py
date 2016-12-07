@@ -1,5 +1,12 @@
 import setuptools
 
+
+requirements = [
+    'lxml',
+    'pycrypto',
+    'requests',
+]
+
 setuptools.setup(
     name="python-walmart",
     version="0.0.1",
@@ -13,7 +20,7 @@ setuptools.setup(
 
     packages=setuptools.find_packages(),
 
-    install_requires=[],
+    install_requires=requirements,
 
     classifiers=[
         'Development Status :: 2 - Pre-Alpha',
