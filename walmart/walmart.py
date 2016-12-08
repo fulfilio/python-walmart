@@ -65,7 +65,7 @@ class Walmart(object):
         encoded_url = url
         if params:
             encoded_url += '?%s' % urlencode(params)
-        headers = self.get_headers(url=encoded_url, method='GET')
+        headers = self.get_headers(encoded_url, method)
 
         if method == 'GET':
             return self.session.get(url, params=params, headers=headers)
@@ -99,10 +99,10 @@ class Resource(object):
         return self.connection.send_request(
             method='PUT', url=self.url, params=kwargs)
 
-    def bulk_update(self, **kwargs):
+    def bulk_update(self, items):
         url = self.connection.base_url % 'feeds?feedType=%s' % self.feedType
         return self.connection.send_request(
-            method='POST', url=url, data=self.get_payload())
+            method='POST', url=url, data=self.get_payload(items))
 
 
 class Items(Resource):
@@ -211,7 +211,7 @@ class Orders(Resource):
     def cancel(self, id, lines):
         url = self.url + '/%s/cancel' % id
         return self.send_request(
-            method='POST', url=url, data=self.get_cancel_payload())
+            method='POST', url=url, data=self.get_cancel_payload(lines))
 
     def get_cancel_payload(self, lines):
         element = ElementMaker(

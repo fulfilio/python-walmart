@@ -7,6 +7,10 @@ requirements = [
     'requests',
 ]
 
+test_requirements = [
+    'pytest',
+]
+
 setuptools.setup(
     name="python-walmart",
     version="0.0.1",
@@ -31,4 +35,6 @@ setuptools.setup(
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
     ],
+    test_suite='tests',
+    tests_require=test_requirements
 )
