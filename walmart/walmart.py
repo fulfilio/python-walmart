@@ -5,10 +5,14 @@ import time
 from uuid import uuid4
 from lxml import etree
 from lxml.builder import E, ElementMaker
-from urllib import urlencode
 from Crypto.Hash import SHA256
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
+
+try:
+    from urllib.parse import urlencode
+except ImportError:
+    from urllib import urlencode
 
 
 class Walmart(object):
@@ -46,7 +50,7 @@ class Walmart(object):
         )
 
     def sign_data(self, data):
-        rsakey = RSA.importKey(self.private_key.decode('base64'))
+        rsakey = RSA.importKey(base64.b64decode(self.private_key))
         signer = PKCS1_v1_5.new(rsakey)
         digest = SHA256.new()
         digest.update(data.encode('utf-8'))
