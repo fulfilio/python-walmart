@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import requests
+import uuid
 import base64
 import time
 from uuid import uuid4
@@ -69,11 +70,15 @@ class Walmart(object):
             'WM_QOS.CORRELATION_ID': str(uuid4()),
         }
 
-    def send_request(self, method, url, params=None, body=None):
+    def send_request(
+        self, method, url, params=None, body=None, request_headers=None
+    ):
         encoded_url = url
         if params:
             encoded_url += '?%s' % urlencode(params)
         headers = self.get_headers(encoded_url, method)
+        if request_headers:
+            headers.update(request_headers)
 
         if method == 'GET':
             return self.session.get(url, params=params, headers=headers)
@@ -109,8 +114,20 @@ class Resource(object):
 
     def bulk_update(self, items):
         url = self.connection.base_url % 'feeds?feedType=%s' % self.feedType
+        boundary = uuid.uuid4().hex
+        headers = {
+            'Content-Type': "multipart/form-data; boundary=%s" % boundary
+        }
+        data = self.get_payload(items)
+        body = '--{boundary}\n\n{data}\n--{boundary}--'.format(
+            boundary=boundary, data=data
+        )
         return self.connection.send_request(
-            method='POST', url=url, data=self.get_payload(items))
+            method='POST',
+            url=url,
+            body=body,
+            request_headers=headers
+        )
 
 
 class Items(Resource):
