@@ -44,6 +44,10 @@ class Walmart(object):
     def orders(self):
         return Orders(connection=self)
 
+    @property
+    def report(self):
+        return Report(connection=self)
+
     def get_sign(self, url, method, timestamp):
         return self.sign_data(
             '\n'.join([self.consumer_id, url, method, timestamp]) + '\n'
@@ -251,3 +255,11 @@ class Orders(Resource):
                 )
             ), xml_declaration=True, encoding='utf-8'
         )
+
+
+class Report(Resource):
+    """
+    Get report
+    """
+
+    path = 'getReport'
