@@ -83,7 +83,9 @@ class Walmart(object):
         if method == 'GET':
             return self.session.get(url, params=params, headers=headers)
         elif method == 'PUT':
-            return self.session.put(url, params=params, headers=headers)
+            return self.session.put(
+                url, params=params, headers=headers, data=body
+            )
         elif method == 'POST':
             return self.session.post(url, data=body, headers=headers)
 
@@ -145,6 +147,38 @@ class Inventory(Resource):
 
     path = 'inventory'
     feedType = 'inventory'
+
+    def update_inventory(self, sku, quantity):
+        headers = {
+            'Content-Type': "application/xml"
+        }
+        return self.connection.send_request(
+            method='PUT',
+            url=self.url,
+            params={'sku': sku},
+            body=self.get_inventory_payload(sku, quantity),
+            request_headers=headers
+        )
+
+    def get_inventory_payload(self, sku, quantity):
+        element = ElementMaker(
+            namespace='http://walmart.com/',
+            nsmap={
+                'wm': 'http://walmart.com/',
+            }
+        )
+        return etree.tostring(
+            element(
+                'inventory',
+                element('sku', sku),
+                element(
+                    'quantity',
+                    element('unit', 'EACH'),
+                    element('amount', str(quantity)),
+                ),
+                element('fulfillmentLagTime', '4'),
+            ), xml_declaration=True, encoding='utf-8'
+        )
 
     def get_payload(self, items):
         return etree.tostring(
