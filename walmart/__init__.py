@@ -1,6 +1,6 @@
 """python-walmart - Walmart Marketplace API"""
 
-__version__ = '0.0.4'
+__version__ = '0.0.5'
 __author__ = 'Fulfil.IO Inc. <hello@fulfil.io>'
 __all__ = []
 
