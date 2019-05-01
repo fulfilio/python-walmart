@@ -337,9 +337,9 @@ class Orders(Resource):
         }
         """
         element = ElementMaker(
-            namespace='http://walmart.com/mp/v3/orders',
+            namespace='http://walmart.com/mp/v2/orders',
             nsmap={
-                'ns2': 'http://walmart.com/mp/v3/orders',
+                'ns2': 'http://walmart.com/mp/v2/orders',
                 'ns3': 'http://walmart.com/'
             }
         )
