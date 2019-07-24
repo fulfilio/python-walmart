@@ -3,12 +3,12 @@ import setuptools
 
 requirements = [
     'lxml',
-    'pycrypto',
     'requests',
 ]
 
 test_requirements = [
     'pytest',
+    'requests-mock',
 ]
 
 setuptools.setup(
