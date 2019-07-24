@@ -1,33 +1,50 @@
 # -*- coding: utf-8 -*-
 import requests
 import uuid
-import base64
-import time
-from uuid import uuid4
+
+from requests.auth import HTTPBasicAuth
 from lxml import etree
 from lxml.builder import E, ElementMaker
-from Crypto.Hash import SHA256
-from Crypto.PublicKey import RSA
-from Crypto.Signature import PKCS1_v1_5
 
-try:
-    from urllib.parse import urlencode
-except ImportError:
-    from urllib import urlencode
+from .exceptions import WalmartAuthenticationError
 
 
 class Walmart(object):
 
-    def __init__(self, consumer_id, channel_type, private_key):
-        self.base_url = 'https://marketplace.walmartapis.com/v2/%s'
-        self.consumer_id = consumer_id
-        self.channel_type = channel_type
-        self.private_key = private_key
-        self.session = requests.Session()
-        self.session.headers['Accept'] = 'application/xml'
-        self.session.headers['WM_SVC.NAME'] = 'Walmart Marketplace'
-        self.session.headers['WM_CONSUMER.ID'] = self.consumer_id
-        self.session.headers['WM_CONSUMER.CHANNEL.TYPE'] = self.channel_type
+    def __init__(self, client_id, client_secret):
+        """To get client_id and client_secret for your Walmart Marketplace
+        visit: https://developer.walmart.com/#/generateKey
+        """
+        self.client_id = client_id
+        self.client_secret = client_secret
+        self.token = None
+        self.token_expires_in = None
+        self.base_url = "https://marketplace.walmartapis.com/v3"
+
+        session = requests.Session()
+        session.headers.update({
+            "WM_SVC.NAME": "Walmart Marketplace",
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Accept": "application/json",
+        })
+        session.auth = HTTPBasicAuth(self.client_id, self.client_secret)
+        self.session = session
+
+        # Get the token required for API requests
+        self.authenticate()
+
+    def authenticate(self):
+        response = self.send_request(
+            "POST", "{}/token".format(self.base_url),
+            body={
+                "grant_type": "client_credentials",
+            },
+        )
+        data = response.json()
+        self.token = data["access_token"]
+        self.token_expires_in = data["expires_in"]
+
+        self.session.headers["WM_SEC.ACCESS_TOKEN"] = self.token
 
     @property
     def items(self):
@@ -49,45 +66,48 @@ class Walmart(object):
     def report(self):
         return Report(connection=self)
 
-    def get_sign(self, url, method, timestamp):
-        return self.sign_data(
-            '\n'.join([self.consumer_id, url, method, timestamp]) + '\n'
-        )
-
-    def sign_data(self, data):
-        rsakey = RSA.importKey(base64.b64decode(self.private_key))
-        signer = PKCS1_v1_5.new(rsakey)
-        digest = SHA256.new()
-        digest.update(data.encode('utf-8'))
-        sign = signer.sign(digest)
-        return base64.b64encode(sign)
-
-    def get_headers(self, url, method):
-        timestamp = str(int(round(time.time() * 1000)))
-        return {
-            'WM_SEC.AUTH_SIGNATURE': self.get_sign(url, method, timestamp),
-            'WM_SEC.TIMESTAMP': timestamp,
-            'WM_QOS.CORRELATION_ID': str(uuid4()),
-        }
-
     def send_request(
         self, method, url, params=None, body=None, request_headers=None
     ):
-        encoded_url = url
-        if params:
-            encoded_url += '?%s' % urlencode(params)
-        headers = self.get_headers(encoded_url, method)
+        # A unique ID which identifies each API call and used to track
+        # and debug issues; use a random generated GUID for this ID
+        headers = {
+            "WM_QOS.CORRELATION_ID": uuid.uuid4().hex,
+        }
         if request_headers:
             headers.update(request_headers)
 
-        if method == 'GET':
-            return self.session.get(url, params=params, headers=headers)
-        elif method == 'PUT':
-            return self.session.put(
+        response = None
+        if method == "GET":
+            response = self.session.get(url, params=params, headers=headers)
+        elif method == "PUT":
+            response = self.session.put(
                 url, params=params, headers=headers, data=body
             )
-        elif method == 'POST':
-            return self.session.post(url, data=body, headers=headers)
+        elif method == "POST":
+            response = self.session.post(url, data=body, headers=headers)
+
+        if response is not None:
+            try:
+                response.raise_for_status()
+            except requests.exceptions.HTTPError:
+                if response.status_code == 401:
+                    raise WalmartAuthenticationError((
+                        "Invalid client_id or client_secret. Please verify "
+                        "your credentials from https://developer.walmart."
+                        "com/#/generateKey"
+                    ))
+                elif response.status_code == 400:
+                    data = response.json()
+                    if data["error"][0]["code"] == \
+                            "INVALID_TOKEN.GMP_GATEWAY_API":
+                        # Refresh the token as the current token has expired
+                        self.authenticate()
+                        return self.send_request(
+                            method, url, params, body, request_headers
+                        )
+                raise
+        return response
 
 
 class Resource(object):
@@ -100,19 +120,21 @@ class Resource(object):
 
     @property
     def url(self):
-        return self.connection.base_url % self.path
+        return "{}/{}".format(self.connection.base_url, self.path)
 
     def all(self, **kwargs):
         return self.connection.send_request(
-            method='GET', url=self.url, params=kwargs)
+            method="GET", url=self.url, params=kwargs
+        )
 
     def get(self, id):
-        url = self.url + '/%s' % id
-        return self.connection.send_request(method='GET', url=url)
+        url = "{}/{}".format(self.url, id)
+        return self.connection.send_request(method="GET", url=url)
 
     def update(self, **kwargs):
         return self.connection.send_request(
-            method='PUT', url=self.url, params=kwargs)
+            method="PUT", url=self.url, params=kwargs
+        )
 
     def bulk_update(self, items):
         url = self.connection.base_url % 'feeds?feedType=%s' % self.feedType

@@ -7,23 +7,54 @@ test_walmart
 Tests for `walmart` module.
 """
 
-import pytest 	# noqa
-from lxml import objectify
+import pytest  # noqa
+
+from .mocks import get_mock_for
 
 
-def test_items_all(resp, walmart):
+def test_token_generation(walmart):
+    "test if token authentication call is made"
+    assert walmart.token is not None
+    assert walmart.token_expires_in is not None
+
+
+def test_items_all(walmart, requests_mock):
     "test fetching all items"
+    requests_mock.get(
+        "https://marketplace.walmartapis.com/v3/items",
+        json=get_mock_for("items")
+    )
     response = walmart.items.all()
-    items = objectify.fromstring(response.content)
-    assert items.MPItemView[0].mart == 'WALMART_US'
-    assert items.MPItemView[0].sku == '1701-810'
-    assert items.MPItemView[0].gtin == 635510465225
+    items = response.json()["ItemResponse"]
+    assert len(items) == 20
+
+    assert items[0]["mart"] == "WALMART_US"
+    assert items[0]["sku"] == "101013-21550015340"
+    assert items[0]["gtin"] == "00635510505068"
+
+    assert items[1]["mart"] == "WALMART_US"
+    assert items[1]["sku"] == "101010-43805580"
+    assert items[1]["gtin"] == "00635510489702"
 
 
-def test_orders_all(resp, walmart):
+def test_orders_all(walmart, requests_mock):
     "test fetching all orders"
-    response = walmart.orders.all(createdStartDate='2016-12-06')
-    orders = objectify.fromstring(response.content)
-    assert orders.elements.order.purchaseOrderId == 1234567890
-    assert orders.elements.order.customerOrderId == 987654321
-    assert orders.elements.order.customerEmailId == 'brucewayne@gmail.com'
+    requests_mock.get(
+        "https://marketplace.walmartapis.com/v3/orders?"
+        "createdStartDate=2019-07-19T00:00:00Z&limit=5",
+        json=get_mock_for("orders")
+    )
+    response = walmart.orders.all(
+        createdStartDate="2019-07-19T00:00:00Z",
+        limit=5
+    )
+    orders = response.json()["list"]["elements"]["order"]
+    assert len(orders) == 5
+
+    assert orders[0]["purchaseOrderId"] == "4792059978801"
+    assert orders[0]["customerOrderId"] == "4751966035239"
+    assert len(orders[0]["orderLines"]["orderLine"]) == 3
+
+    assert orders[1]["purchaseOrderId"] == "4792059978430"
+    assert orders[1]["customerOrderId"] == "4751966531767"
+    assert len(orders[1]["orderLines"]["orderLine"]) == 1
