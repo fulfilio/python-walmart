@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 import requests
 import uuid
+import csv
+import io
+import zipfile
 
 from requests.auth import HTTPBasicAuth
 from lxml import etree
@@ -160,6 +163,14 @@ class Items(Resource):
     """
 
     path = 'items'
+
+    def get_items(self):
+        "Get all the items from the Item Report"
+        response = self.connection.report.all(type="item")
+        zf = zipfile.ZipFile(io.BytesIO(response.content), "r")
+        product_report = zf.read(zf.infolist()[0]).decode("utf-8")
+
+        return list(csv.DictReader(io.StringIO(product_report)))
 
 
 class Inventory(Resource):
