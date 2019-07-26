@@ -13,7 +13,7 @@ test_requirements = [
 
 setuptools.setup(
     name="python-walmart",
-    version="0.1.1",
+    version="0.1.2",
     url="https://github.com/fulfilio/python-walmart",
 
     author="Fulfil.IO Inc.",
