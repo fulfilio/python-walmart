@@ -25,7 +25,7 @@ def test_items_all(walmart, requests_mock):
         json=get_mock_for("items")
     )
     response = walmart.items.all()
-    items = response.json()["ItemResponse"]
+    items = response["ItemResponse"]
     assert len(items) == 20
 
     assert items[0]["mart"] == "WALMART_US"
@@ -48,7 +48,7 @@ def test_orders_all(walmart, requests_mock):
         createdStartDate="2019-07-19T00:00:00Z",
         limit=5
     )
-    orders = response.json()["list"]["elements"]["order"]
+    orders = response["list"]["elements"]["order"]
     assert len(orders) == 5
 
     assert orders[0]["purchaseOrderId"] == "4792059978801"
