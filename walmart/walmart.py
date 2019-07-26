@@ -300,6 +300,23 @@ class Orders(Resource):
 
     path = 'orders'
 
+    def all(self, **kwargs):
+        try:
+            return super(Orders, self).all(**kwargs)
+        except requests.exceptions.HTTPError as exc:
+            if exc.response.status_code == 404:
+                # If no orders are there on walmart matching the query
+                # filters, it throws 404. In this case return an empty
+                # list to make the API consistent
+                return {
+                    "list": {
+                        "elements": {
+                            "order": [],
+                        }
+                    }
+                }
+            raise
+
     def acknowledge(self, id):
         url = self.url + '/%s/acknowledge' % id
         return self.send_request(method='POST', url=url)
