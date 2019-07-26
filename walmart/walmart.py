@@ -13,6 +13,12 @@ from lxml.builder import E, ElementMaker
 from .exceptions import WalmartAuthenticationError
 
 
+def epoch_milliseconds(dt):
+    "Walmart accepts timestamps as epoch time in milliseconds"
+    epoch = datetime.utcfromtimestamp(0)
+    return (dt - epoch).total_seconds() * 1000.0
+
+
 class Walmart(object):
 
     def __init__(self, client_id, client_secret):
@@ -362,7 +368,7 @@ class Orders(Resource):
             ), xml_declaration=True, encoding='utf-8'
         )
 
-    def ship(self, order_id, lines):
+    def create_shipment(self, order_id, lines):
         """Send shipping updates to Walmart
 
         :param order_id: Purchase order ID of an order
@@ -381,12 +387,11 @@ class Orders(Resource):
         """
         url = self.url + "/{}/shipping".format(order_id)
 
-        epoch = datetime.utcfromtimestamp(0)
         order_lines = []
         for line in lines:
             ship_time = line.get("ship_time", "")
             if ship_time:
-                ship_time = (ship_time - epoch).total_seconds() * 1000.0
+                ship_time = epoch_milliseconds(ship_time)
             order_lines.append({
                 "lineNumber": line["line_number"],
                 "orderLineStatuses": {
