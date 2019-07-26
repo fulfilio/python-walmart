@@ -37,13 +37,12 @@ class Walmart(object):
         self.authenticate()
 
     def authenticate(self):
-        response = self.send_request(
+        data = self.send_request(
             "POST", "{}/token".format(self.base_url),
             body={
                 "grant_type": "client_credentials",
             },
         )
-        data = response.json()
         self.token = data["access_token"]
         self.token_expires_in = data["expires_in"]
 
@@ -110,7 +109,12 @@ class Walmart(object):
                             method, url, params, body, request_headers
                         )
                 raise
-        return response
+        try:
+            return response.json()
+        except ValueError:
+            # In case of reports, there is no JSON response, so return the
+            # content instead which contains the actual report
+            return response.content
 
 
 class Resource(object):
@@ -167,7 +171,7 @@ class Items(Resource):
     def get_items(self):
         "Get all the items from the Item Report"
         response = self.connection.report.all(type="item")
-        zf = zipfile.ZipFile(io.BytesIO(response.content), "r")
+        zf = zipfile.ZipFile(io.BytesIO(response), "r")
         product_report = zf.read(zf.infolist()[0]).decode("utf-8")
 
         return list(csv.DictReader(io.StringIO(product_report)))
