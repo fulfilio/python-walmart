@@ -5,6 +5,7 @@ import csv
 import io
 import zipfile
 
+from datetime import datetime
 from requests.auth import HTTPBasicAuth
 from lxml import etree
 from lxml.builder import E, ElementMaker
@@ -361,75 +362,65 @@ class Orders(Resource):
             ), xml_declaration=True, encoding='utf-8'
         )
 
-    def update_shipment(self, order_id, package):
-        headers = {
-            'Content-Type': "application/xml"
-        }
-        url = self.url + '/%s/shipping' % order_id
-        return self.connection.send_request(
-            method='POST',
-            url=url,
-            body=self.get_shipment_payload(package),
-            request_headers=headers
-        )
+    def ship(self, order_id, lines):
+        """Send shipping updates to Walmart
 
-    def get_shipment_payload(self, package):
-        """Shipment Update
-
-        :param package: {
-            "tracking_number": "",
-            "tracking_url": "",
-            "carrier": "",
-            "carrier_service": '',
-            "ship_date_time": '',
-            "items": [{
-                "line_number": "",
-                "quantity": 2,
-                "status": "Shipped",
-                "uom": "Each",
+        :param order_id: Purchase order ID of an order
+        :param lines: Order lines to be fulfilled in the format:
+            [{
+                "line_number": "123",
+                "uom": "EACH",
+                "quantity": 3,
+                "ship_time": datetime(2019, 04, 04, 12, 00, 00),
+                "other_carrier": None,
+                "carrier": "USPS",
+                "carrier_service": "Standard",
+                "tracking_number": "34567890567890678",
+                "tracking_url": "www.fedex.com",
             }]
-        }
         """
-        element = ElementMaker(
-            namespace='http://walmart.com/mp/v3/orders',
-            nsmap={
-                'ns2': 'http://walmart.com/mp/v3/orders',
-                'ns3': 'http://walmart.com/'
-            }
-        )
+        url = self.url + "/{}/shipping".format(order_id)
+
+        epoch = datetime.utcfromtimestamp(0)
         order_lines = []
-        for item in package['items']:
-            tracking_info = element(
-                'trackingInfo',
-                element('shipDateTime', package.get('ship_date_time', '')),
-                element('carrierName', element('carrier', package['carrier'])),
-                element('methodCode', package['carrier_service']),
-                element('trackingNumber', package['tracking_number']),
-                element('trackingURL', package.get('tracking_url', '')),
-            )
-            status_info = element(
-                'orderLineStatuses',
-                element(
-                    'orderLineStatus',
-                    element('status', item['status']),
-                    element(
-                        'statusQuantity',
-                        element('unitOfMeasurement', item['uom']),
-                        element('amount', str(item['quantity']))
-                    ),
-                    tracking_info
-                )
-            )
-            order_lines.append(element(
-                'orderLine',
-                element('lineNumber', item['line_number']),
-                status_info
-            ))
-        shipment_data = element(
-            'orderShipment', element('orderLines', *order_lines)
-        )
-        return etree.tostring(
-            shipment_data, xml_declaration=True, encoding='utf-8'
+        for line in lines:
+            ship_time = line.get("ship_time", "")
+            if ship_time:
+                ship_time = (ship_time - epoch).total_seconds() * 1000.0
+            order_lines.append({
+                "lineNumber": line["line_number"],
+                "orderLineStatuses": {
+                    "orderLineStatus": [{
+                        "status": "Shipped",
+                        "statusQuantity": {
+                            "unitOfMeasurement": line.get("uom", "EACH"),
+                            "amount": str(line["quantity"]),
+                        },
+                        "trackingInfo": {
+                            "shipDateTime": ship_time,
+                            "carrierName": {
+                                "otherCarrier": line.get("other_carrier"),
+                                "carrier": line["carrier"],
+                            },
+                            "methodCode": line.get("carrier_service", ""),
+                            "trackingNumber": line["tracking_number"],
+                            "trackingURL": line.get("tracking_url", "")
+                        }
+                    }],
+                }
+            })
+
+        body = {
+            "orderShipment": {
+                "orderLines": {
+                    "orderLine": order_lines,
+                }
+            }
+        }
+        return self.connection.send_request(
+            method="POST",
+            url=url,
+            body=body,
         )
 
 
