@@ -75,8 +75,13 @@ class Walmart(object):
     def report(self):
         return Report(connection=self)
 
+    @property
+    def feed(self):
+        return Feed(connection=self)
+
     def send_request(
-        self, method, url, params=None, body=None, request_headers=None
+        self, method, url, params=None, body=None, json=None,
+        request_headers=None
     ):
         # A unique ID which identifies each API call and used to track
         # and debug issues; use a random generated GUID for this ID
@@ -94,7 +99,15 @@ class Walmart(object):
                 url, params=params, headers=headers, data=body
             )
         elif method == "POST":
-            response = self.session.post(url, data=body, headers=headers)
+            request_params = {
+                "params": params,
+                "headers": headers,
+            }
+            if json is not None:
+                request_params["json"] = json
+            else:
+                request_params["data"] = body
+            response = self.session.post(url, **request_params)
 
         if response is not None:
             try:
@@ -150,23 +163,6 @@ class Resource(object):
             method="PUT", url=self.url, params=kwargs
         )
 
-    def bulk_update(self, items):
-        url = self.connection.base_url % 'feeds?feedType=%s' % self.feedType
-        boundary = uuid.uuid4().hex
-        headers = {
-            'Content-Type': "multipart/form-data; boundary=%s" % boundary
-        }
-        data = self.get_payload(items)
-        body = '--{boundary}\n\n{data}\n--{boundary}--'.format(
-            boundary=boundary, data=data
-        )
-        return self.connection.send_request(
-            method='POST',
-            url=url,
-            body=body,
-            request_headers=headers
-        )
-
 
 class Items(Resource):
     """
@@ -191,6 +187,42 @@ class Inventory(Resource):
 
     path = 'inventory'
     feedType = 'inventory'
+
+    def bulk_update(self, items):
+        """Updates the inventory for multiple items at once by creating the
+        feed on Walmart.
+
+        :param items: Items for which the inventory needs to be updated in
+        the format of:
+            [{
+                "sku": "XXXXXXXXX",
+                "availability_code": "AC",
+                "quantity": "10",
+                "uom": "EACH",
+                "fulfillment_lag_time": "1",
+            }]
+        """
+        inventory_data = []
+        for item in items:
+            data = {
+                "sku": item["sku"],
+                "quantity": {
+                    "amount": item["quantity"],
+                    "unit": item.get("uom", "EACH"),
+                },
+                "fulfillmentLagTime": item.get("fulfillment_lag_time"),
+            }
+            if item.get("availability_code"):
+                data["availabilityCode"] = item["availability_code"]
+            inventory_data.append(data)
+
+        body = {
+            "InventoryHeader": {
+                "version": "1.4",
+            },
+            "Inventory": inventory_data,
+        }
+        return self.connection.feed.create(resource="inventory", content=body)
 
     def update_inventory(self, sku, quantity):
         headers = {
@@ -435,3 +467,38 @@ class Report(Resource):
     """
 
     path = 'getReport'
+
+
+class Feed(Resource):
+    path = "feeds"
+
+    def create(self, resource, content):
+        """Creates the feed on Walmart for respective resource
+
+        Once you upload the Feed, you can use the Feed ID returned in the
+        response to track the status of the feed and the status of the
+        item within that Feed.
+
+        :param resource: The resource for which the feed needs to be created.
+        :param content: The content needed to create the Feed.
+        """
+        return self.connection.send_request(
+            method="POST",
+            url=self.url,
+            params={
+                "feedType": resource,
+            },
+            json=content,
+        )
+
+    def get_status(self, feed_id, offset=0, limit=1000):
+        "Returns the feed and item status for a specified Feed ID"
+        return self.connection.send_request(
+            method="GET",
+            url="{}/{}".format(self.url, feed_id),
+            params={
+                "includeDetails": "true",
+                "limit": limit,
+                "offset": offset,
+            },
+        )
