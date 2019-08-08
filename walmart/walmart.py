@@ -16,7 +16,7 @@ from .exceptions import WalmartAuthenticationError
 def epoch_milliseconds(dt):
     "Walmart accepts timestamps as epoch time in milliseconds"
     epoch = datetime.utcfromtimestamp(0)
-    return (dt - epoch).total_seconds() * 1000.0
+    return int((dt - epoch).total_seconds() * 1000.0)
 
 
 class Walmart(object):
@@ -431,7 +431,7 @@ class Orders(Resource):
                         "status": "Shipped",
                         "statusQuantity": {
                             "unitOfMeasurement": line.get("uom", "EACH"),
-                            "amount": str(line["quantity"]),
+                            "amount": str(int(line["quantity"])),
                         },
                         "trackingInfo": {
                             "shipDateTime": ship_time,
@@ -457,7 +457,7 @@ class Orders(Resource):
         return self.connection.send_request(
             method="POST",
             url=url,
-            body=body,
+            json=body,
         )
 
 
