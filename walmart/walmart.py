@@ -10,8 +10,6 @@ from requests.auth import HTTPBasicAuth
 from lxml import etree
 from lxml.builder import E, ElementMaker
 
-from .exceptions import WalmartAuthenticationError
-
 
 def epoch_milliseconds(dt):
     "Walmart accepts timestamps as epoch time in milliseconds"
