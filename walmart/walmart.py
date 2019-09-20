@@ -114,14 +114,8 @@ class Walmart(object):
                 response.raise_for_status()
             except requests.exceptions.HTTPError:
                 if response.status_code == 401:
-                    raise WalmartAuthenticationError((
-                        "Invalid client_id or client_secret. Please verify "
-                        "your credentials from https://developer.walmart."
-                        "com/#/generateKey"
-                    ))
-                elif response.status_code == 400:
                     data = response.json()
-                    if data["errors"]["error"][0]["code"] == \
+                    if data["error"][0]["code"] == \
                             "INVALID_TOKEN.GMP_GATEWAY_API":
                         # Refresh the token as the current token has expired
                         self.authenticate()
