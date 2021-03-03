@@ -10,8 +10,6 @@ from requests.auth import HTTPBasicAuth
 from lxml import etree
 from lxml.builder import E, ElementMaker
 
-from .exceptions import WalmartAuthenticationError
-
 
 def epoch_milliseconds(dt):
     "Walmart accepts timestamps as epoch time in milliseconds"
@@ -114,12 +112,6 @@ class Walmart(object):
                 response.raise_for_status()
             except requests.exceptions.HTTPError:
                 if response.status_code == 401:
-                    raise WalmartAuthenticationError((
-                        "Invalid client_id or client_secret. Please verify "
-                        "your credentials from https://developer.walmart."
-                        "com/#/generateKey"
-                    ))
-                elif response.status_code == 400:
                     data = response.json()
                     if "error" in data and data["error"][0]["code"] == \
                             "INVALID_TOKEN.GMP_GATEWAY_API":
@@ -358,11 +350,11 @@ class Orders(Resource):
 
     def acknowledge(self, id):
         url = self.url + '/%s/acknowledge' % id
-        return self.send_request(method='POST', url=url)
+        return self.connection.send_request(method='POST', url=url)
 
     def cancel(self, id, lines):
         url = self.url + '/%s/cancel' % id
-        return self.send_request(
+        return self.connection.send_request(
             method='POST', url=url, data=self.get_cancel_payload(lines))
 
     def get_cancel_payload(self, lines):
